@@ -31,6 +31,7 @@ public class ClientTest {
 		System.out.println("hbase.zookeeper.property.clientPort :" + conf.get("hbase.zookeeper.property.clientPort"));
 		System.out.println("hbase.zookeeper.quorum :" + conf.get("hbase.zookeeper.quorum"));
 		System.out.println("hbase.master :" + conf.get("hbase.master"));
+		
 		//conf.set("hbase.zookeeper.property.clientPort" , "42181");
 		//conf.set("hbase.zookeeper.quorum", "node01");
 		//conf.set("hbase.master", "node01:62000");
