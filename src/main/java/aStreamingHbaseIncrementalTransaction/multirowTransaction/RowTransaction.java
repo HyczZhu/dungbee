@@ -375,5 +375,61 @@ public class RowTransaction {
 		HTable htable = (HTable) pool.getTable(table);
 		return htable.checkAndPut(row, family, qualifier, value, put);
 	}
+	
+	/***
+	 * simple wrap of checkAndPut method from HTable. No matter the column
+	 * exists or not, this method set the specific value.
+	 * 
+	 * @param table
+	 * @param row
+	 * @param family
+	 * @param column
+	 * @param value
+	 * @return
+	 * @throws IOException
+	 */
+	public boolean forceCheckAndPut(byte[] table, byte[] row, byte[] family,
+			byte[] column, byte[] value) throws IOException {
+		HTable htable = (HTable) TestBase.getTablePool().getTable(table);
+		Put put = new Put(row);
+		put.add(family, column, value);
+		boolean rt = false;
+
+		try {
+			Get get = new Get(row);
+			get.addColumn(family, column);
+			Result r = htable.get(get);
+			if (r.isEmpty()) {
+				rt = htable.checkAndPut(row, family, column, null, put);
+			} else {
+				rt = htable.checkAndPut(row, family, column,
+						r.getValue(family, column), put);
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		} finally {
+			htable.close();
+		}
+		return rt;
+	}
+
+	/***
+	 * simple wrap of checkAndPut method from HTable. No matter the column
+	 * exists or not, this method set the specific value.
+	 * 
+	 * @param table
+	 * @param row
+	 * @param family
+	 * @param column
+	 * @param value
+	 * @return
+	 * @throws IOException
+	 */
+	public boolean forceCheckAndPut(String table, String row, String family,
+			String column, String value) throws IOException {
+		return forceCheckAndPut(Bytes.toBytes(table), Bytes.toBytes(row),
+				Bytes.toBytes(family), Bytes.toBytes(column),
+				Bytes.toBytes(value));
+	}
 
 }

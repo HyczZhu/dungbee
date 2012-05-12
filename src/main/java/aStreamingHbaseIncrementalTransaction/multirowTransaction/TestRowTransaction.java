@@ -2,8 +2,10 @@ package aStreamingHbaseIncrementalTransaction.multirowTransaction;
 
 import java.io.IOException;
 
+import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.util.Bytes;
 
 import aStreamingHbaseIncrementalTransaction.example.TestBase;
@@ -60,6 +62,8 @@ public class TestRowTransaction extends RowTransaction {
 		}
 	}
 
+
+
 	public static void main(String[] args) {
 		System.out.println("Begin");
 		try {
@@ -83,11 +87,11 @@ public class TestRowTransaction extends RowTransaction {
 			// }
 			// }
 			// ////////////////
-			for (int i = 0; i < 5; i++) {
+			for (int i = 0; i < 6; i++) {
 				boolean b;
-				b=trt.checkAndPut(TABLE_NAME, "row_checkAndPut", COLUMN_FAMILY,
-						"column" + i, "checkAndPut-value-ow-ow" + i);
-				System.out.println("i="+i+";result="+b);
+				b = trt.forceCheckAndPut(TABLE_NAME, "row_checkAndPut",
+						COLUMN_FAMILY, "column" + i, "checkAndPut-value" + i);
+				System.out.println("i=" + i + ";result=" + b);
 			}
 			TestHBaseBasicClient.queryRow(TABLE_NAME, "row_checkAndPut");
 
