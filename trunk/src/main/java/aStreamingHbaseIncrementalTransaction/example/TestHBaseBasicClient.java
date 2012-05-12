@@ -71,6 +71,7 @@ public class TestHBaseBasicClient {
 	}
 
 	static void printResultScanner(ResultScanner rs) {
+		if (rs==null) return;
 		for (Result r : rs) {
 			System.out.println("####################################################");
 			System.out.println("#printResultScanner: rowKey = "
@@ -89,6 +90,7 @@ public class TestHBaseBasicClient {
 	}
 
 	static void printResult(Result r) {
+		if (r == null || r.isEmpty()) return;
 		System.out.println("####################################################");
 		System.out.println("#printResult: rowKey = "
 				+ new String(r.getRow()));
