@@ -2,19 +2,24 @@ package aStreamingHbaseIncrementalTransaction.multirowTransaction;
 
 import java.io.IOException;
 
+import org.apache.hadoop.hbase.client.HTable;
+import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.util.Bytes;
+
+import aStreamingHbaseIncrementalTransaction.example.TestBase;
 import aStreamingHbaseIncrementalTransaction.example.TestHBaseBasicClient;
 
-public class TestRowTransaction extends RowTransaction{
+public class TestRowTransaction extends RowTransaction {
 	private static final String TABLE_NAME = "SimpleDungbeeTest";
 	private static final String TABLE_NAME_2 = "SimpleDungbeeTest2";
 	private static final String COLUMN_FAMILY = "SimpleColumnFamily";
-	
+
 	public static int threadcount = 0;
 
-
 	/***
-	 * use multi thread to lock and put data into a row.
-	 * using some default put parameters
+	 * use multi thread to lock and put data into a row. using some default put
+	 * parameters
+	 * 
 	 * @param threadNum
 	 */
 	public void multiThreadLockAndPut(int threadNum) {
@@ -25,6 +30,7 @@ public class TestRowTransaction extends RowTransaction{
 
 	/***
 	 * use multi thread to lock and put data into a row
+	 * 
 	 * @param threadNum
 	 * @param tableName
 	 * @param rowName
@@ -55,10 +61,10 @@ public class TestRowTransaction extends RowTransaction{
 	}
 
 	public static void main(String[] args) {
-
+		System.out.println("Begin");
 		try {
 			TestRowTransaction trt = new TestRowTransaction();
-			// for (int i = 0; i < 1; i++) {
+			// for (int i = 0; i < 4; i++) {
 			// new TestRowTransaction().lockAndPut(TABLE_NAME, "row" + i,
 			// COLUMN_FAMILY, "column",
 			// "lockAndPut-value" + i);
@@ -66,15 +72,25 @@ public class TestRowTransaction extends RowTransaction{
 			// COLUMN_FAMILY);
 			// }
 			// TestHBaseBasicClient.queryTable(TABLE_NAME);
-			int threadnum = 4;
-			trt.multiThreadLockAndPut(threadnum);
-			while (true) {
-				if (TestRowTransaction.threadcount == threadnum) {
-					TestHBaseBasicClient.queryRow(TABLE_NAME,
-							"row_multiThreadLockAndPut");
-					break;
-				}
+			// ///////////////
+			// int threadnum = 4;
+			// trt.multiThreadLockAndPut(threadnum);
+			// while (true) {
+			// if (TestRowTransaction.threadcount == threadnum) {
+			// TestHBaseBasicClient.queryRow(TABLE_NAME,
+			// "row_multiThreadLockAndPut");
+			// break;
+			// }
+			// }
+			// ////////////////
+			for (int i = 0; i < 5; i++) {
+				boolean b;
+				b=trt.checkAndPut(TABLE_NAME, "row_checkAndPut", COLUMN_FAMILY,
+						"column" + i, "checkAndPut-value-ow-ow" + i);
+				System.out.println("i="+i+";result="+b);
 			}
+			TestHBaseBasicClient.queryRow(TABLE_NAME, "row_checkAndPut");
+
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
