@@ -1,4 +1,4 @@
-package aStreamHbaseIncrementalTransaction.Transaction;
+package aStreamingHbaseIncrementalTransaction.Transaction;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;

@@ -1,4 +1,4 @@
-package aStreamHbaseIncrementalTransaction.Transaction;
+package aStreamingHbaseIncrementalTransaction.Transaction;
 
 import java.util.ArrayList;
 import java.util.List;

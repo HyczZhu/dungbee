@@ -1,4 +1,4 @@
-package aStreamHbaseIncrementalTransaction.Transaction;
+package aStreamingHbaseIncrementalTransaction.Transaction;
 
 public class TransactionField {
 	public static final byte[] _DATA = "_data".getBytes();

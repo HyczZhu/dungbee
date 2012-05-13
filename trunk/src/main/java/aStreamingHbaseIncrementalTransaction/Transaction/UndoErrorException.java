@@ -1,4 +1,4 @@
-package aStreamHbaseIncrementalTransaction.Transaction;
+package aStreamingHbaseIncrementalTransaction.Transaction;
 
 public class UndoErrorException extends Exception {
 

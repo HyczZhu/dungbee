@@ -3,7 +3,7 @@ package aStreamingHbaseIncrementalTransaction.client;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.RowLock;
 
-import aStreamHbaseIncrementalTransaction.Transaction.TransactionField;
+import aStreamingHbaseIncrementalTransaction.Transaction.TransactionField;
 
 public class TPut extends Put {
 	/***
