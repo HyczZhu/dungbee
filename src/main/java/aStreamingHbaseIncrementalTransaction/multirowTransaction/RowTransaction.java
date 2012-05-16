@@ -282,7 +282,7 @@ public class RowTransaction {
 		try {
 			// Check if the record exists
 			if (!doOverwrite) {
-				Get get = new Get(row, rowLock);
+				Get get = new Get(row, timestamp, rowLock);
 				Result result = table.get(get);
 				if (!result.getColumn(family, column).isEmpty()) {
 					System.out.println("record exists, quit");
