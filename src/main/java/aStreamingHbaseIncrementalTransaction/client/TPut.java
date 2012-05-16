@@ -3,7 +3,7 @@ package aStreamingHbaseIncrementalTransaction.client;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.RowLock;
 
-import aStreamingHbaseIncrementalTransaction.Transaction.TransactionField;
+import aStreamingHbaseIncrementalTransaction.transaction.TransactionField;
 
 public class TPut extends Put {
 	/***
@@ -19,20 +19,12 @@ public class TPut extends Put {
 	/***
 	 * 
 	 * @param family
-	 * @param qualifier
 	 * @param ts
 	 * @param value
 	 * @return
 	 */
-	public TPut add(byte[] family , byte[] qualifier , long ts , byte[] value)	{
-		byte[] dataQualifier = 
-				new byte[qualifier.length + TransactionField._DATA.length];
-		
-		System.arraycopy(qualifier, 0, dataQualifier, 0, qualifier.length);
-		System.arraycopy(TransactionField._DATA, 0, dataQualifier,
-				qualifier.length, TransactionField._DATA.length);
-		super.add(family, dataQualifier, ts, value);
-		
+	public TPut add(byte[] family , long ts , byte[] value)	{
+		super.add(family, TransactionField.DATA, ts, value);
 		return this;
 	}
 }

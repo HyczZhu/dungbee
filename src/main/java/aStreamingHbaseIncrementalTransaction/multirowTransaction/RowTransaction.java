@@ -2,6 +2,7 @@ package aStreamingHbaseIncrementalTransaction.multirowTransaction;
 
 import java.io.IOException;
 
+import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.UnknownRowLockException;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.HTable;
@@ -28,7 +29,13 @@ public class RowTransaction {
 		return (HTable) pool.getTable(tableName);
 	}
 
-	private static String tableName;
+	private String tableName;
+	
+	public RowTransaction()	{}
+	
+	public RowTransaction(String tableName)	{
+		this.tableName = tableName;
+	}
 
 	// use lock to put and get
 
@@ -39,8 +46,8 @@ public class RowTransaction {
 	 * @return
 	 * @throws IOException
 	 */
-	Result lockAndGet(Get get) throws IOException {
-		HTable table = getHTable(get.getRow().toString());
+	public Result lockAndGet(Get get) throws IOException {
+		HTable table = getHTable(tableName);
 		Result result = null;
 
 		RowLock rowLock = table.lockRow(get.getRow());
@@ -80,7 +87,7 @@ public class RowTransaction {
 	 * @return
 	 * @throws IOException
 	 */
-	Result lockAndGet(String tableName, String rowName, String familyName)
+	public Result lockAndGet(String tableName, String rowName, String familyName)
 			throws IOException {
 		HTable table = getHTable(tableName);
 		Result result = null;
@@ -128,7 +135,7 @@ public class RowTransaction {
 	 * @return
 	 * @throws IOException
 	 */
-	Result lockAndGet(String tableName, String rowName, String familyName,
+	public Result lockAndGet(String tableName, String rowName, String familyName,
 			String columnName) throws IOException {
 		HTable table = getHTable(tableName);
 		Result result = null;
@@ -184,12 +191,12 @@ public class RowTransaction {
 
 	/***
 	 * use row lock to put data
-	 * 
 	 * @param tableName
 	 * @param rowName
 	 * @param familyName
 	 * @param columnName
 	 * @param value
+	 * @param timestamp
 	 * @param doOverwrite
 	 * @throws IOException
 	 */
@@ -250,6 +257,68 @@ public class RowTransaction {
 		}
 	}
 
+	//=====================================
+	// Add by wLiu, to use timestamp
+	//=====================================
+	/***
+	 * 
+	 * @param tableName
+	 * @param row
+	 * @param family
+	 * @param column
+	 * @param value
+	 * @param timestamp
+	 * @param doOverwrite
+	 * @throws IOException
+	 */
+	public void lockAndPut(String tableName, byte[] row, byte[] family,
+			byte[] column, byte[] value, long timestamp, boolean doOverwrite)
+			throws IOException {
+
+		HTable table = getHTable(tableName);
+		RowLock rowLock = table.lockRow(row);
+		//System.out.println("row lock id: " + rowLock.getLockId());
+		
+		try {
+			// Check if the record exists
+			if (!doOverwrite) {
+				Get get = new Get(row, rowLock);
+				Result result = table.get(get);
+				if (!result.getColumn(family, column).isEmpty()) {
+					System.out.println("record exists, quit");
+					throw new Exception("This column already exists.");
+				}
+			}
+
+			// Row does not exist yet, create it
+			Put p = new Put(row, timestamp, rowLock);
+			p.add(family, column, value);
+			System.out.println("putting " + tableName + "/" + Bytes.toString(row) + "/"
+					+ Bytes.toString(family) + "/" + Bytes.toString(column) + ":" + value);
+			table.put(p);
+
+		} catch (IOException e) {
+			e.printStackTrace();
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			// System.out.println("Wait time: "+
+			// (System.currentTimeMillis()-time)+ "ms" );
+			try {
+				System.out.println("releasing lock ...");
+				// System.out.println("row lock id: "+rowLock.getLockId());
+				table.unlockRow(rowLock);
+				// System.out.println("after unlock");
+			} catch (UnknownRowLockException e) {
+				System.out
+						.println("the lock is already discarded by the server");
+				e.printStackTrace();
+			}
+
+			table.close();
+		}
+	}
+	
 	// use RowMutations to do a row transaction
 
 	public static void doRowMutation() {
