@@ -2,8 +2,8 @@ package aStreamingHbaseIncrementalTransaction.multirowTransaction;
 
 import java.io.IOException;
 
-import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.UnknownRowLockException;
+import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.HTablePool;
@@ -282,7 +282,8 @@ public class RowTransaction {
 		try {
 			// Check if the record exists
 			if (!doOverwrite) {
-				Get get = new Get(row, timestamp, rowLock);
+				Get get = new Get(row, rowLock);
+				get.setTimeStamp(timestamp);
 				Result result = table.get(get);
 				if (!result.getColumn(family, column).isEmpty()) {
 					System.out.println("record exists, quit");
@@ -316,6 +317,41 @@ public class RowTransaction {
 			}
 
 			table.close();
+		}
+	}
+	
+	//==============================
+	// Add by wLiu
+	//==============================
+	/***
+	 * 删除存储单元
+	 * @param tableName
+	 * @param row
+	 * @param column
+	 * @param qualifier
+	 * @param ts
+	 * @throws IOException
+	 */
+	public void lockAndDelete(String tableName , byte[] row , byte[] column ,
+			byte[] qualifier , long ts) throws IOException {
+		
+		HTable table = getHTable(tableName);
+		RowLock rowLock = table.lockRow(row);
+		try	{
+			//删除时间戳ts之前到所有版本
+			Delete delete = new Delete(row , ts , rowLock);
+			delete.deleteColumns(column, qualifier);
+			table.delete(delete);
+		} catch(IOException e)	{
+			e.printStackTrace();
+		} finally	{
+			try {
+				table.unlockRow(rowLock);
+			} catch (IOException e) {
+				e.printStackTrace();
+			} finally	{
+				table.close();
+			}
 		}
 	}
 	
