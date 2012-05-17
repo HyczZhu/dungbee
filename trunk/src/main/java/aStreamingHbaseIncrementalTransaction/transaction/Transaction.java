@@ -40,7 +40,7 @@ public class Transaction {
 	 * 
 	 * @param row
 	 * @param col
-	 * @return 返回指定行列交点到最新值，如果不存在，则返回null
+	 * @return 返回指定存储单元的最新值，如果不存在，则返回null
 	 * @throws IOException
 	 * @throws TransactionException 
 	 */
@@ -49,7 +49,7 @@ public class Transaction {
 		
 		int waitCnt = 0;
 		while(true)	{
-			//检查将要操作到存储单元是否被上锁了
+			//检查将要操作的存储单元是否被上锁了
 			//如果被上锁了，则等待锁释放
 			if(checkExistByTimeRange(table , row , col , TransactionField.LOCK , 0 , startTimestamp))	{
 				waitCnt++;
@@ -70,9 +70,9 @@ public class Transaction {
 			if(latestWrite.isEmpty())	{
 				return null;	//write字段未被写入时间戳(说明没有data字段没有数据)
 			}
-			//获取最近一次在write字段里面写入到时间戳，并根据该时间戳获取最近到数据
-			//注意，write字段存储到是上一次提交到事务的开始时间戳，该时间戳用于找到正确到data字段
-			//而write字段本身到时间戳，是上一次事务提交时到时间戳
+			//获取最近一次在write字段里面写入到时间戳，并根据该时间戳获取最近的数据
+			//注意，write字段存储的是上一次提交的事务的开始时间戳，该时间戳用于找到正确的data字段
+			//而write字段本身的时间戳，是上一次事务提交时的时间戳
 			long maxStamp = 0L;
 			for(KeyValue kv : latestWrite.raw())	{
 				LOG.debug(" row: " + new String(kv.getRow()) + 
@@ -93,7 +93,7 @@ public class Transaction {
 	}
 	
 	/***
-	 * 判断在指定到时间戳范围内，指定到存储单元中是否存放有数据
+	 * 判断在指定的时间戳范围内，指定的存储单元中是否存放有数据
 	 * @param row
 	 * @param col
 	 * @param qualifier
@@ -110,7 +110,7 @@ public class Transaction {
 	}
 	
 	/***
-	 * 这里仅仅是简单睡眠500ms，等待锁释放。该函数到功能等以后有时间再增加
+	 * 这里仅仅是简单睡眠500ms，等待锁释放。该函数的功能等以后有时间再增加
 	 * @param row
 	 * @param col
 	 */
@@ -118,13 +118,12 @@ public class Transaction {
 		try {
 			Thread.sleep(500);
 		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
 	
 	/***
-	 * 根据特定到时间戳区间查询结果
+	 * 根据特定的时间戳区间查询结果
 	 * @param row
 	 * @param col
 	 * @param qualifier
@@ -143,7 +142,7 @@ public class Transaction {
 	}
 	
 	/***
-	 * 根据特定到时间戳查询结果
+	 * 根据特定的时间戳查询结果
 	 * @param row
 	 * @param col
 	 * @param qualifier
@@ -178,7 +177,7 @@ public class Transaction {
 				TransactionField.LOCK, 0, Long.MAX_VALUE))	{
 			return false;
 		}
-		//将w到数据写入到data字段中，并写入w的主锁的位置
+		//将w的数据写入到data字段中，并写入w的主锁的位置
 		RowTransaction rt = new RowTransaction();
 		rt.lockAndPut(w.getTableName(),  w.getRow(), w.getCol(),
 				TransactionField.DATA, w.getVal(), startTimestamp, overWrite);
@@ -189,7 +188,52 @@ public class Transaction {
 		return true;
 	}
 	
-	//public boolean commit()	{}
+	/***
+	 * 提交事务
+	 * @return 事务成功返回true，失败返回false
+	 * @throws TransactionException
+	 * @throws IOException
+	 */
+	public boolean commit() throws TransactionException, IOException	{
+		if(writeList.isEmpty())	{
+			throw new TransactionException("No TransactionWrite");
+		}
+		TransactionWrite prime = writeList.get(0);
+		//primary TransactionWrite 的 preWrite 操作
+		if(!preWrite(prime, prime, true))	{
+			return false;
+		}
+		//secondaries TransactionWrite 的 preWrite 操作
+		for(int index = 1 ; index != writeList.size() ; ++index)	{
+			if(!preWrite(writeList.get(index) , prime , true))	{
+				return false;
+			}
+		}
+		
+		RowTransaction rowTransaction = new RowTransaction(prime.getTableName());
+		//检测主锁是否存在，若不存在，则说明事务被终止了
+		if(!checkExistByTimeRange(prime.getTableName(), prime.getRow(), prime.getCol(),
+				TransactionField.LOCK, startTimestamp, startTimestamp+1))	{
+			return false;
+		}
+		//在Write字段中写入事务开始时间，事务提交时间为该字段到时间戳
+		long commitTimestamp = System.currentTimeMillis();
+		byte[] startTs = (startTimestamp + "").getBytes();
+		rowTransaction.lockAndPut(prime.getTableName(), prime.getRow(), prime.getCol(),
+				TransactionField.WRITE, startTs, commitTimestamp, true);
+		//将Lock字段擦除
+		rowTransaction.lockAndDelete(prime.getTableName(), prime.getRow(), prime.getCol(),
+				TransactionField.LOCK, commitTimestamp);
+		
+		for(int index = 1 ; index != writeList.size() ; ++index)	{
+			TransactionWrite w = writeList.get(index);
+			rowTransaction.lockAndPut(w.getTableName(), w.getRow(), w.getCol(),
+					TransactionField.WRITE, startTs, commitTimestamp, true);
+			rowTransaction.lockAndDelete(w.getTableName(), w.getRow(), w.getCol(),
+					TransactionField.LOCK, commitTimestamp);
+		}
+		return true;
+	}
 }
 
 
