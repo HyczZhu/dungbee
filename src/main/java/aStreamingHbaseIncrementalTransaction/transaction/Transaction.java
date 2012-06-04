@@ -28,9 +28,9 @@ public class Transaction {
 	 * @throws TransactionException
 	 */
 	public void set(TransactionWrite w) throws TransactionException	{
-		if(w.getTableName() == null || w.getRow() == null || w.getCol() == null)	{
+		if(!w.isValid())	{
 			LOG.error("aSHIT.transaction.Transaction#set(): " +
-					  "tableName or row or column could NOT be null");
+					  "tableName or row or column or qualifier could NOT be null");
 			throw new TransactionException("TransactionWrite row and column could NOT be null");
 		}
 		writeList.add(w);
@@ -44,21 +44,27 @@ public class Transaction {
 	 * @throws IOException
 	 * @throws TransactionException 
 	 */
-	public byte[] get(String table , byte[] row , byte[] col)
+	public byte[] get(String table , byte[] row , byte[] col , byte[] qualifier)
 			throws IOException, TransactionException	{
+		
+		byte[] lockQual = TransactionField.convertToLockQualifier(qualifier);
+		byte[] writeQual = TransactionField.convertToWriteQualifier(qualifier);
+		byte[] dataQual = TransactionField.convertToDataQualifier(qualifier);
 		
 		int waitCnt = 0;
 		while(true)	{
 			//检查将要操作的存储单元是否被上锁了
 			//如果被上锁了，则等待锁释放
-			if(checkExistByTimeRange(table , row , col , TransactionField.LOCK , 0 , startTimestamp))	{
+			if(checkExistByTimeRange(table , row , col , lockQual , 0 , startTimestamp))	{
 				waitCnt++;
 				if(waitCnt > 10)	{
 					LOG.warn("aSHIT.transaction.Transaction#get(): Wait Lock Time Out.");
-					LOG.warn(" row = " + new String(row) + " # col = " + new String(col));
+					LOG.warn(" row = " + new String(row) + " # col = " +
+							new String(col) + " # qualifier: " + new String(qualifier));
 					throw new TransactionException(
 							" row: " + new String(row) + 
 							" col: " + new String(col) +
+							" qualifier: " + new String(qualifier) + 
 							" was locked too LONG!!! ");
 				}
 				tryToCleanupLock(row , col);
@@ -66,7 +72,7 @@ public class Transaction {
 			}
 			
 			Result latestWrite = getByTimeRange(table , row , col , 
-					TransactionField.WRITE , 0 , startTimestamp);
+					writeQual , 0 , startTimestamp);
 			if(latestWrite.isEmpty())	{
 				return null;	//write字段未被写入时间戳(说明没有data字段没有数据)
 			}
@@ -87,8 +93,8 @@ public class Transaction {
 					maxStamp = timestamp;
 				}
 			}
-			Result dataResult = getByTimestamp(table , row , col , TransactionField.DATA , maxStamp);
-			return dataResult.getValue(col, TransactionField.DATA);
+			Result dataResult = getByTimestamp(table , row , col , dataQual , maxStamp);
+			return dataResult.getValue(col, dataQual);
 		}
 	}
 	
@@ -167,24 +173,27 @@ public class Transaction {
 	private boolean preWrite(TransactionWrite w , TransactionWrite primary , boolean overWrite) 
 			throws IOException	{
 		
+		byte[] writeQual = TransactionField.convertToWriteQualifier(w.getQualifier());
+		byte[] lockQual = TransactionField.convertToLockQualifier(w.getQualifier());
+		byte[] dataQual = TransactionField.convertToDataQualifier(w.getQualifier());
 		//检查当前事务开始时间点以后是否已有Write字段写入，若被写入，说明当前事务已经过期，返回false
 		if(checkExistByTimeRange(w.getTableName(), w.getRow(), w.getCol(),
-				TransactionField.WRITE, startTimestamp, Long.MAX_VALUE))	{
+				writeQual, startTimestamp, Long.MAX_VALUE))	{
 			return false;
 		}
 		//检查该存储单元是否被锁住，如果被锁住，则事务失败
 		if(checkExistByTimeRange(w.getTableName(), w.getRow(), w.getCol(),
-				TransactionField.LOCK, 0, Long.MAX_VALUE))	{
+				lockQual, 0, Long.MAX_VALUE))	{
 			return false;
 		}
 		//将w的数据写入到data字段中，并写入w的主锁的位置
 		RowTransaction rt = new RowTransaction();
 		rt.lockAndPut(w.getTableName(),  w.getRow(), w.getCol(),
-				TransactionField.DATA, w.getVal(), startTimestamp, overWrite);
+				dataQual, w.getVal(), startTimestamp, overWrite);
 		String primaryPosition = new String(
 				new String(primary.getRow()) + "#" + new String(primary.getCol()));
 		rt.lockAndPut(w.getTableName(), w.getRow(), w.getCol(),
-				TransactionField.LOCK, primaryPosition.getBytes(), startTimestamp, overWrite);
+				lockQual, primaryPosition.getBytes(), startTimestamp, overWrite);
 		return true;
 	}
 	
@@ -213,24 +222,27 @@ public class Transaction {
 		RowTransaction rowTransaction = new RowTransaction(prime.getTableName());
 		//检测主锁是否存在，若不存在，则说明事务被终止了
 		if(!checkExistByTimeRange(prime.getTableName(), prime.getRow(), prime.getCol(),
-				TransactionField.LOCK, startTimestamp, startTimestamp+1))	{
+				TransactionField.convertToLockQualifier(prime.getQualifier()),
+				startTimestamp, startTimestamp+1))	{
 			return false;
 		}
 		//在Write字段中写入事务开始时间，事务提交时间为该字段到时间戳
 		long commitTimestamp = System.currentTimeMillis();
 		byte[] startTs = (startTimestamp + "").getBytes();
 		rowTransaction.lockAndPut(prime.getTableName(), prime.getRow(), prime.getCol(),
-				TransactionField.WRITE, startTs, commitTimestamp, true);
+				TransactionField.convertToWriteQualifier(prime.getQualifier()), 
+				startTs, commitTimestamp, true);
 		//将Lock字段擦除
 		rowTransaction.lockAndDelete(prime.getTableName(), prime.getRow(), prime.getCol(),
-				TransactionField.LOCK, commitTimestamp);
+				TransactionField.convertToLockQualifier(prime.getQualifier()), commitTimestamp);
 		
 		for(int index = 1 ; index != writeList.size() ; ++index)	{
 			TransactionWrite w = writeList.get(index);
 			rowTransaction.lockAndPut(w.getTableName(), w.getRow(), w.getCol(),
-					TransactionField.WRITE, startTs, commitTimestamp, true);
+					TransactionField.convertToWriteQualifier(w.getQualifier()),
+					startTs, commitTimestamp, true);
 			rowTransaction.lockAndDelete(w.getTableName(), w.getRow(), w.getCol(),
-					TransactionField.LOCK, commitTimestamp);
+					TransactionField.convertToLockQualifier(w.getQualifier()), commitTimestamp);
 		}
 		return true;
 	}
