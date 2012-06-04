@@ -4,6 +4,7 @@ public class TransactionWrite {
 	private String tableName; 
 	private byte[] row;
 	private byte[] col;
+	private byte[] qualifier;
 	private byte[] value;
 	
 	public TransactionWrite()	{
@@ -33,6 +34,10 @@ public class TransactionWrite {
 		this.col = col;
 	}
 	
+	public void setQualifier(byte[] qualifier)	{
+		this.qualifier = qualifier;
+	}
+	
 	public void setVal(byte[] value)	{
 		this.value = value;
 	}
@@ -49,7 +54,19 @@ public class TransactionWrite {
 		return row;
 	}
 	
+	public byte[] getQualifier()	{
+		return qualifier;
+	}
+	
 	public byte[] getVal()	{
 		return value;
+	}
+	
+	/***
+	 * 判断当前TransactionWrite是否合法
+	 * @return
+	 */
+	public boolean isValid()	{
+		return (tableName != null) && (row != null) && (col != null) && (qualifier != null);
 	}
 }
